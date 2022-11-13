@@ -20,10 +20,10 @@ type request struct {
 }
 
 type response struct {
-	URL            string        `json:"url"`
-	CustomShort    string        `json:"short"`
-	Expiry         time.Duration `json:"expiry"`
-	XRateRemaining int           `json:"rate_limit"`
+	URL             string        `json:"url"`
+	CustomShort     string        `json:"short"`
+	Expiry          time.Duration `json:"expiry"`
+	XRateRemaining  int           `json:"rate_limit"`
 	XRateLimitReset time.Duration `json:"rate_limit_reset"`
 }
 
@@ -44,7 +44,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	val, err := r2.Get(database.Ctx, c.IP()).Result()
 
 	if err == redis.Nil {
-		_ = r2.Set(database.Ctx, c.IP(), os.Getenv("API_QUOTA"), 30 * 60 * time.Second).Err()
+		_ = r2.Set(database.Ctx, c.IP(), os.Getenv("API_QUOTA"), 30*60*time.Second).Err()
 	} else {
 
 		valInt, _ := strconv.Atoi(val)
@@ -52,27 +52,26 @@ func ShortenURL(c *fiber.Ctx) error {
 		if valInt <= 0 {
 			limit, _ := r2.TTL(database.Ctx, c.IP()).Result()
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"error": "Rate limit exceeded",
-				"rate_limit_reset" : limit / time.Nanosecond / time.Minute,
+				"error":            "Rate limit exceeded",
+				"rate_limit_reset": limit / time.Nanosecond / time.Minute,
 			})
 		}
 	}
 
-
 	// check if input actual url
-	
+
 	if !govalidator.IsURL(body.URL) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid URL"})
 	}
 
-	// check for domain error 
-	
+	// check for domain error
+
 	if !helpers.RemoveDomainError(body.URL) {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "You can't pass"})
 	}
 
 	// enforce https, SSL
-	
+
 	body.URL = helpers.EnforceHTTP(body.URL)
 
 	var id string
@@ -99,22 +98,21 @@ func ShortenURL(c *fiber.Ctx) error {
 		body.Expiry = 24
 	}
 
-	err = r.Set(database.Ctx, id, body.URL, body.Expiry * 3600 * time.Second).Err()
+	err = r.Set(database.Ctx, id, body.URL, body.Expiry*3600*time.Second).Err()
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Unable to connect to server",
-		}) 
+		})
 	}
 
-	resp := response {
-		URL: body.URL,
-		CustomShort:"",
-		Expiry: body.Expiry,
-		XRateRemaining: 10,
+	resp := response{
+		URL:             body.URL,
+		CustomShort:     "",
+		Expiry:          body.Expiry,
+		XRateRemaining:  10,
 		XRateLimitReset: 30,
 	}
-
 
 	r2.Decr(database.Ctx, c.IP())
 
